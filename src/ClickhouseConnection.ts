@@ -109,7 +109,9 @@ export class ClickhouseConnection implements DatabaseConnection {
       const response = await resultSet.json();
 
       return {
-        rows: response.data as O[],
+        rows: (response && typeof response === "object" && "data" in response
+          ? (response as { data: O[] }).data
+          : (response as O[])) as O[],
       };
     }
 
