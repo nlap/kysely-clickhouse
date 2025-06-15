@@ -3,10 +3,10 @@
 [Kysely](https://github.com/koskimas/kysely) adapter for [Clickhouse](https://clickhouse.com).
 
 ```bash
-npm i @clickhouse/client @founderpath/kysely-clickhouse
+npm i @clickhouse/client-web @founderpath/kysely-clickhouse
 ```
 
-This project was largely adapted from [kysely-planetscale](https://github.com/depot/kysely-planetscale). It's a barebone version, there's a lot of improvements that can be done here. 
+This project was largely adapted from [kysely-planetscale](https://github.com/depot/kysely-planetscale). It's a barebone version, there's a lot of improvements that can be done here.
 
 ## Usage
 
@@ -27,4 +27,3 @@ interface Database {
 
 const db = new Kysely<Database>({ dialect: new ClickhouseDialect() });
 ```
-

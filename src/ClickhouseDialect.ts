@@ -4,16 +4,16 @@ import {
   Driver,
   Kysely,
   MysqlQueryCompiler,
-  QueryCompiler
-} from 'kysely';
+  QueryCompiler,
+} from "kysely";
 
-import { ClickhouseDriver } from './ClickhouseDriver';
-import { ClickhouseIntrospector } from './ClickhouseIntrospector';
-import type { NodeClickHouseClientConfigOptions } from '@clickhouse/client/dist/config';
-import { ClickhouseAdapter } from './ClickhouseAdapter';
+import { ClickhouseDriver } from "./ClickhouseDriver";
+import { ClickhouseIntrospector } from "./ClickhouseIntrospector";
+import { ClickhouseAdapter } from "./ClickhouseAdapter";
+import { WebClickHouseClientConfigOptions } from "@clickhouse/client-web/dist/config";
 
 export interface ClickhouseDialectConfig {
-  options?: NodeClickHouseClientConfigOptions;
+  options?: WebClickHouseClientConfigOptions;
 }
 
 export class ClickhouseDialect implements Dialect {
@@ -39,6 +39,3 @@ export class ClickhouseDialect implements Dialect {
     return new ClickhouseIntrospector(db);
   }
 }
-
-
-
