@@ -110,10 +110,6 @@ export class ClickhouseConnection implements DatabaseConnection {
       });
 
       const data: any[] = await resultSet.json();
-
-      // Add debug log to see what the response looks like
-      console.log("ClickHouse response structure:", JSON.stringify(data));
-
       return {
         rows: Array.isArray(data) ? data : [],
       };
