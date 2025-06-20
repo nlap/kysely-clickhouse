@@ -103,15 +103,19 @@ export class ClickhouseConnection implements DatabaseConnection {
 
     if (compiledQuery.query.kind === "SelectQueryNode") {
       const query = this.prepareQuery(compiledQuery);
+
       const resultSet = await this.#client.query({
         query,
+        format: "JSONEachRow",
       });
-      const response = await resultSet.json();
+
+      const data: any[] = await resultSet.json();
+
+      // Add debug log to see what the response looks like
+      console.log("ClickHouse response structure:", JSON.stringify(data));
 
       return {
-        rows: (response && typeof response === "object" && "data" in response
-          ? (response as { data: O[] }).data
-          : (response as O[])) as O[],
+        rows: Array.isArray(data) ? data : [],
       };
     }
 
