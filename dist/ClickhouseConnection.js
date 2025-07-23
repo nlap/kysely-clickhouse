@@ -86,12 +86,11 @@ class ClickhouseConnection {
             const query = this.prepareQuery(compiledQuery);
             const resultSet = await this.#client.query({
                 query,
+                format: "JSONEachRow",
             });
-            const response = await resultSet.json();
+            const data = await resultSet.json();
             return {
-                rows: (response && typeof response === "object" && "data" in response
-                    ? response.data
-                    : response),
+                rows: Array.isArray(data) ? data : [],
             };
         }
         if (compiledQuery.query.kind === "UpdateQueryNode") {

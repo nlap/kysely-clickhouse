@@ -6,13 +6,13 @@
   "types": "./dist/index.d.ts",
   "repository": {
     "type": "git",
-    "url": "https://github.com/founderpathcom/kysely-clickhouse"
+    "url": "https://github.com/yourusername/kysely-clickhouse"
   },
   "scripts": {
-    "prepare": "tsc",
+    "build": "tsc",
     "test": "vitest",
     "test:up": "docker-compose down && docker compose up -d",
-    "build": "tsc"
+    "prepublishOnly": "npm run build"
   },
   "files": [
     "dist"
