@@ -3,6 +3,38 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ClickhouseConnection = void 0;
 const client_web_1 = require("@clickhouse/client-web");
 const node_crypto_1 = require("node:crypto");
+function inlineLiteral(value) {
+    if (typeof value === "boolean")
+        return value ? "1" : "0";
+    if (typeof value === "bigint")
+        return value.toString();
+    if (Number.isNaN(value))
+        return "nan";
+    if (value === Number.POSITIVE_INFINITY)
+        return "inf";
+    if (value === Number.NEGATIVE_INFINITY)
+        return "-inf";
+    return String(value);
+}
+function paramType(value) {
+    switch (typeof value) {
+        case "string":
+            return "String";
+        case "bigint":
+            return "Int64";
+        case "boolean":
+            return "Bool";
+        case "number":
+            return Number.isInteger(value) ? "Int64" : "Float64";
+    }
+    if (value instanceof Date)
+        return "DateTime64(3)";
+    if (Array.isArray(value)) {
+        const element = value.find((v) => v !== null && v !== undefined);
+        return `Array(${element === undefined ? "String" : paramType(element)})`;
+    }
+    return "String";
+}
 class ClickhouseConnection {
     #client;
     constructor(config) {
@@ -16,19 +48,31 @@ class ClickhouseConnection {
         });
     }
     prepareQuery(compiledQuery) {
-        let i = 0;
+        const query_params = {};
+        let index = 0;
         const compiledSql = compiledQuery.sql.replace(/\?/g, () => {
-            const param = compiledQuery.parameters[i++];
-            if (typeof param === "number") {
-                return `${param}`;
+            const param = compiledQuery.parameters[index++];
+            if (param === null || param === undefined) {
+                return "NULL";
             }
-            // should never happen
-            if (typeof param !== "string") {
-                return `'${JSON.stringify(param)}'`;
+            if (typeof param === "number" ||
+                typeof param === "bigint" ||
+                typeof param === "boolean") {
+                return inlineLiteral(param);
             }
-            return `'${param.replace(/'/gm, `\\'`).replace(/\\"/g, '\\\\"')}'`;
+            const name = `p${index - 1}`;
+            const value = typeof param === "string" ||
+                param instanceof Date ||
+                Array.isArray(param)
+                ? param
+                : JSON.stringify(param);
+            query_params[name] = value;
+            return `{${name}: ${paramType(value)}}`;
         });
-        return compiledSql.replace(/^update ((`\w+`\.)*`\w+`) set/i, "alter table $1 update");
+        return {
+            query: compiledSql.replace(/^update ((`\w+`\.)*`\w+`) set/i, "alter table $1 update"),
+            query_params,
+        };
     }
     async executeQuery(compiledQuery) {
         if (compiledQuery.query.kind === "InsertQueryNode") {
@@ -56,21 +100,7 @@ class ClickhouseConnection {
                 };
             }
             if (compiledQuery.query.values?.kind === "SelectQueryNode") {
-                let counter = 0;
-                const query = compiledQuery.sql.replace(/\?/g, () => {
-                    const val = compiledQuery.parameters[counter];
-                    if (typeof val === "string") {
-                        return `{p${counter++}: String}`;
-                    }
-                    if (typeof val === "number") {
-                        return `{p${counter++}: UInt32}`;
-                    }
-                    if (typeof val === "object" && val instanceof Date) {
-                        return `{p${counter++}: DateTime}`;
-                    }
-                    return `{p${counter++}: String}`;
-                });
-                const query_params = Object.fromEntries(compiledQuery.parameters.map((val, i) => [`p${i}`, val]));
+                const { query, query_params } = this.prepareQuery(compiledQuery);
                 await this.#client.command({
                     query,
                     query_params,
@@ -83,9 +113,10 @@ class ClickhouseConnection {
             }
         }
         if (compiledQuery.query.kind === "SelectQueryNode") {
-            const query = this.prepareQuery(compiledQuery);
+            const { query, query_params } = this.prepareQuery(compiledQuery);
             const resultSet = await this.#client.query({
                 query,
+                query_params,
                 format: "JSONEachRow",
             });
             const data = await resultSet.json();
@@ -94,9 +125,10 @@ class ClickhouseConnection {
             };
         }
         if (compiledQuery.query.kind === "UpdateQueryNode") {
-            const query = this.prepareQuery(compiledQuery);
+            const { query, query_params } = this.prepareQuery(compiledQuery);
             const resultSet = await this.#client.query({
                 query,
+                query_params,
             });
             const summary = resultSet.response_headers["x-clickhouse-summary"];
             const summaryObject = JSON.parse((Array.isArray(summary) ? summary[0] : summary) ?? "{}");
@@ -106,8 +138,10 @@ class ClickhouseConnection {
                 numChangedRows: BigInt(summaryObject.written_rows ?? 0),
             };
         }
+        const { query, query_params } = this.prepareQuery(compiledQuery);
         await this.#client.command({
-            query: this.prepareQuery(compiledQuery),
+            query,
+            query_params,
             clickhouse_settings: {
                 wait_end_of_query: 1,
             },
@@ -126,9 +160,10 @@ class ClickhouseConnection {
         throw new Error("Transactions are not supported.");
     }
     async *streamQuery(compiledQuery, chunkSize) {
-        const query = this.prepareQuery(compiledQuery);
+        const { query, query_params } = this.prepareQuery(compiledQuery);
         const resultSet = await this.#client.query({
             query,
+            query_params,
             format: "JSONEachRow",
         });
         const stream = resultSet.stream();
